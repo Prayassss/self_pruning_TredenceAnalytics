@@ -25,10 +25,10 @@ import json
 CONFIG = {
     "seed":           42,
     "batch_size":     64,
-    "epochs":         20,          # sufficient for convergence; raise to 60 for better accuracy
+    "epochs":         40,          # sufficient for convergence; raise to 60 for better accuracy
     "lr":             1e-3,
     "weight_decay":   1e-4,
-    "lambdas":        [1e-5, 1e-4, 1e-3],   # low / medium / high
+    "lambdas":        [1e-4, 1e-3, 1e-2],   # low / medium / high
     "sparsity_thresh": 1e-2,                 # gate < this → pruned
     "data_dir":       "./data",
     "device":         "cuda" if torch.cuda.is_available() else "cpu",
@@ -56,25 +56,24 @@ class PrunableLinear(nn.Module):
         self.in_features  = in_features
         self.out_features = out_features
 
-        # Standard weight + bias (same init as nn.Linear)
+        
         self.weight = nn.Parameter(torch.empty(out_features, in_features))
         self.bias   = nn.Parameter(torch.zeros(out_features))
 
-        # Gate scores — one scalar per weight; init to 0 → sigmoid(0) = 0.5
-        # Starting at 0.5 lets the network freely move gates up or down.
+        
         self.gate_scores = nn.Parameter(torch.zeros(out_features, in_features))
 
-        # Kaiming uniform init for weights (same as nn.Linear default)
+        
         nn.init.kaiming_uniform_(self.weight, a=np.sqrt(5))
         fan_in = in_features
         bound = 1.0 / np.sqrt(fan_in) if fan_in > 0 else 0
         nn.init.uniform_(self.bias, -bound, bound)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # gates ∈ (0,1); sigmoid is differentiable → gradients flow into gate_scores
+        
         gates        = torch.sigmoid(self.gate_scores)
-        pruned_w     = self.weight * gates            # element-wise mask
-        return F.linear(x, pruned_w, self.bias)       # x @ pruned_w.T + bias
+        pruned_w     = self.weight * gates            
+        return F.linear(x, pruned_w, self.bias)       
 
     def get_gates(self) -> torch.Tensor:
         """Return current gate values (detached)."""
@@ -398,7 +397,7 @@ def generate_report(results: list, save_path: str = "report.md"):
         for r in results
     )
     report = REPORT_TEMPLATE.format(table_rows=rows)
-    with open(save_path, "w") as f:
+    with open(save_path, "w", encoding="utf-8") as f:
         f.write(report)
     print(f"  Report saved → {save_path}")
 
